@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USA Bus Map</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- Leaflet Control Geocoder CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <!-- Custom CSS -->
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent scrolling while loading screen is active */
+        }
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        .search-container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+        }
+        .search-input {
+            width: 200px;
+            padding: 5px;
+            margin-bottom: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .search-button {
+            padding: 5px 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 5px;
+        }
+        .search-button:hover {
+            background-color: #0056b3;
+        }
+        /* Loading screen styles */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #007bff; /* Blue background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            color: white;
+            text-align: center;
+            font-family: Arial, sans-serif;
+        }
+        .loading-screen img {
+            width: 150px; /* Larger bus icon */
+            height: auto;
+        }
+        .loading-text {
+            font-size: 24px;
+            margin-top: 10px;
+        }
+        .loading-heading {
+            font-size: 30px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loading-screen">
+        <div>
+            <div class="loading-heading">Find Your Bus</div>
+            <img src="https://cdn0.iconfinder.com/data/icons/transportation-icons-rounded/110/Bus-512.png" alt="Bus Icon">
+            <div class="loading-text">Loading...</div>
+        </div>
+    </div>
+
+    <div class="search-container">
+        <input type="text" id="place-input" class="search-input" placeholder="Search place">
+        <button class="search-button" onclick="searchPlace()">Search Place</button>
+        <input type="text" id="bus-input" class="search-input" placeholder="Search bus number plate">
+        <button class="search-button" onclick="searchBus()">Search Bus Plate</button>
+    </div>
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <!-- Leaflet Control Geocoder JS -->
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <!-- Custom JS -->
+    <script>
+        // Initialize the map
+        var map = L.map('map').setView([37.0902, -95.7129], 4); // Centered on USA
+
+        // Add a tile layer (Mapbox, OpenStreetMap, etc.)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Define the bus icon
+        var busIcon = L.icon({
+            iconUrl: 'https://cdn0.iconfinder.com/data/icons/transportation-icons-rounded/110/Bus-512.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+
+        // Array of bus locations including new and additional locations
+        var buses = [
+            [40.7128, -74.0060], [34.0522, -118.2437], [41.8781, -87.6298], [29.7604, -95.3698],
+            [33.4484, -112.0740], [39.0997, -94.5786], [37.7749, -122.4194], [47.6062, -122.3321],
+            [25.7617, -80.1918], [39.9526, -75.1652], [38.6270, -90.1994], [32.7767, -96.7970],
+            [42.3601, -71.0589], [44.9778, -93.2650], [37.7749, -122.4194], [39.7392, -104.9903],
+            [36.1699, -115.1398], [47.7511, -120.7401], [39.9612, -82.9988], [40.4406, -79.9959],
+            [42.364, -71.059], [42.362, -71.058], [42.361, -71.060], [42.367, -71.065],
+            [42.366, -71.057], [42.355, -71.060], [42.350, -71.050], [42.370, -71.070],
+            [42.373, -71.062], [42.359, -71.055], [42.358, -71.051], [42.360, -71.064],
+            [42.364, -71.058], [42.365, -71.062], [42.367, -71.058], [42.368, -71.060],
+            [42.371, -71.057], [42.372, -71.065], [42.374, -71.058], [42.375, -71.060]
+        ];
+
+        // Add bus markers to the map
+        buses.forEach(function(bus) {
+            L.marker(bus, {icon: busIcon}).addTo(map);
+        });
+
+        // Initialize the geocoder
+        var geocoder = L.Control.Geocoder.nominatim();
+
+        // Function to handle place search
+        function searchPlace() {
+            var query = document.getElementById('place-input').value;
+            geocoder.geocode(query, function(results) {
+                if (results && results.length > 0) {
+                    var result = results[0];
+                    map.setView(result.center, 14); // Zoom in to the location
+                    L.marker(result.center).addTo(map)
+                        .bindPopup(result.name)
+                        .openPopup();
+                } else {
+                    alert('Place not found.');
+                }
+            });
+        }
+
+        // Function to handle bus number plate search (randomly move to a bus marker)
+        function searchBus() {
+            var query = document.getElementById('bus-input').value;
+            if (buses.length > 0) {
+                var randomBus = buses[Math.floor(Math.random() * buses.length)];
+                map.setView(randomBus, 14); // Zoom in to a random bus location
+                L.marker(randomBus, {icon: busIcon}).addTo(map)
+                    .bindPopup('Bus Plate: ' + query)
+                    .openPopup();
+            }
+            alert('Search for bus number plate: ' + query);
+        }
+
+        // Hide the loading screen after 2 seconds
+        setTimeout(function() {
+            document.getElementById('loading-screen').style.display = 'none';
+            document.body.style.overflow = 'auto'; // Enable scrolling
+        }, 2000);
+
+        // Trigger a 'load' event to ensure the map is ready
+        map.once('load', function() {
+            document.getElementById('loading-screen').style.display = 'none';
+            document.body.style.overflow = 'auto'; // Enable scrolling
+        });
+    </script>
+</body>
+</html>
